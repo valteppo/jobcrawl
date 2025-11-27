@@ -1,5 +1,9 @@
 # Duuniryömijä
 
+<img src="example.png" alt="In Action">
+
+## Overview
+
 This project automates the process of fetching job listings, evaluating them using an LLM, and generating tailored motivation letters for the best-scored positions. 
 
 It consists of three main components:
