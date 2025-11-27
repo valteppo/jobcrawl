@@ -3,7 +3,7 @@ import os
 import json
 
 class Netparser:
-    def __init__(self, selected_job_field: str = "ohjelmisto_ala"):
+    def __init__(self, selected_job_field: str = "ohjelmisto_ala", skip_download: bool = False):
         self.job_field_base_urls = {
             "ohjelmisto_ala": "https://duunitori.fi/tyopaikat/ala/ohjelmointi-ja-ohjelmistokehitys"
         }
@@ -12,12 +12,16 @@ class Netparser:
         self.current_page_content = []
         self.listing_information = []
         self._load_listing_information()
-        self._find_individual_listings()
-        print(f"Total job offers found: {len(self.field_listing_urls)}")
-        self._form_listing_information()
+        if not skip_download:
+            self._find_individual_listings()
+            self._form_listing_information()
 
     def listings(self) -> list:
         return self.listing_information
+    
+    def update_listing_information(self, updated_listings: list) -> None:
+        self.listing_information = updated_listings
+        self._save_listing_information(updated_listings)
     
     def _load_listing_information(self) -> None:
         cwd = os.getcwd()
@@ -33,7 +37,7 @@ class Netparser:
                             listing_data = json.load(f)
                             self.listing_information.append(listing_data)
         except FileNotFoundError:
-            print(f"No existing listings found in {input_dir}. Starting fresh.")
+            print(f"No existing listings found in {input_dir}.")
     
     def _save_listing_information(self, listing_information) -> None:
         # Save individual listings as they are fetched
@@ -41,12 +45,11 @@ class Netparser:
         output_dir = os.path.join(cwd, "output")
         output_dir = os.path.join(output_dir, "listings")
         os.makedirs(output_dir, exist_ok=True)
-        for listing in self.listing_information:
-            company_dir = os.path.join(output_dir, listing["company"])
-            os.makedirs(company_dir, exist_ok=True)
-            listing_file_path = os.path.join(company_dir, f"{listing['id']}.json")
-            with open(listing_file_path, "w", encoding="utf-8") as f:
-                json.dump(listing, f, ensure_ascii=False, indent=4)
+        company_dir = os.path.join(output_dir, listing_information["company"])
+        os.makedirs(company_dir, exist_ok=True)
+        listing_file_path = os.path.join(company_dir, f"{listing_information['id']}.json")
+        with open(listing_file_path, "w", encoding="utf-8") as f:
+            json.dump(listing_information, f, ensure_ascii=False, indent=4)
 
     def _form_listing_information(self) -> None:
         for job_url in self.field_listing_urls:
@@ -67,7 +70,9 @@ class Netparser:
                 "id": job_id,
                 "description": job_description,
                 "publish_date": publish_date,
-                "expiry_date": expiry_date
+                "expiry_date": expiry_date,
+                "evaluated": False,
+                "suitable": None
             }
             self._save_listing_information(listing_information)
             if listing_information["company"] == "Unknown Company":
@@ -80,7 +85,24 @@ class Netparser:
                 return
             self.listing_information.append(listing_information)
 
-
+    def _remove_divclass_from_description(self, description: str) -> str:
+        # remove <div class=\" ... ">
+        while '<div class="' in description:
+            start_index = description.find('<div class="')
+            end_index = description.find('">', start_index) + 2
+            description = description[:start_index] + description[end_index:]
+        return description.strip()
+    
+    def _remove_anchor_tags_from_description(self, description: str) -> str:
+        # remove <a " ... ">" tags and remove closing </a>
+        while '<a ' in description:
+            start_index = description.find('<a ')
+            end_index = description.find('>', start_index) + 1
+            description = description[:start_index] + description[end_index:]
+        while '</a>' in description:
+            description = description.replace('</a>', '')
+        return description.strip()
+    
     def _find_individual_listings(self) -> None:
         self.field_listing_urls = self._get_field_listings()
 
@@ -93,6 +115,11 @@ class Netparser:
                 start_index = line.find('content="') + len('content="')
                 end_index = line.find('"', start_index)
                 company_name = line[start_index:end_index]
+
+                # remove characters that are not allowed in folder names
+                invalid_chars = ['<', '>', ':', '"', '/', '\\', '|', '?', '*']
+                for char in invalid_chars:
+                    company_name = company_name.replace(char, '')
                 return company_name
         return "Unknown Company"
     
@@ -115,36 +142,21 @@ class Netparser:
         return "Unknown Date"
 
     def _job_listing_description_extraction(self, web_content) -> tuple:
-        strip_html_tags = \
-            ["<li>",
-            "</li>",
-            "<ul>",
-            "</ul>",
-            "<div>", 
-            "</div>", 
-            "<br>", 
-            "<br/>", 
-            "<br />", 
-            "<p>",  
-            "<strong>",
-            "</strong>", 
-            "<em>", 
-            "</em>"]
         description_lines = []
         capture = False
         div_counter = 0
         for line in web_content:
-            if 'om jobbet' in line.lower():
+            if 'om jobbet</h2>' in line.lower():
                 lang = "sv"
                 div_counter += 1
                 capture = True
                 continue
-            if 'työpaikkakuvaus' in line.lower():
+            if 'työpaikkakuvaus</h2>' in line.lower():
                 lang = "fi"
                 div_counter += 1
                 capture = True
                 continue
-            if 'job description' in line.lower():
+            if 'job description</h2>' in line.lower():
                 lang = "en"
                 div_counter += 1
                 capture = True
@@ -159,27 +171,33 @@ class Netparser:
                     break
         result = "\n".join(description_lines)
 
-        # Strip HTML tags
-        for tag in strip_html_tags:
-            result = result.replace(tag, " ")
-        
-        # Replace < /p> with newlines
-        result = result.replace("</p>", "\n")
-
-        # Remove <a href="...">...</a> links
-        while '<a href="' in result:
-            start_index = result.find('<a href="')
-            end_index = result.find('">', start_index) + 2
-            link_text_start = end_index
-            link_text_end = result.find('</a>', link_text_start)
-            link_text = result[link_text_start:link_text_end]
-            result = result[:start_index] + link_text + result[link_text_end + 4:]
+        # Replace </p> and <br> with newlines
+        result = result.replace("</p>", "\n").replace("<br>", "\n")
 
         # Replacs \u00e4 and \u00f6 with ä and ö
         result = result.replace("\u00e4", "ä").replace("\u00f6", "ö")
 
+        # Replace U+00a0 with space
+        result = result.replace("\u00a0", " ")
+
         # Trim excessive newlines
         result = "\n".join([line for line in result.splitlines() if line.strip() != ""])
+
+        result = self._remove_divclass_from_description(result)
+        result = self._remove_anchor_tags_from_description(result)
+
+        # Remove any remaining HTML tags
+        if '<' in result and '>' in result:
+            cleaned_result = ""
+            inside_tag = False
+            for char in result:
+                if char == '<':
+                    inside_tag = True
+                elif char == '>':
+                    inside_tag = False
+                elif not inside_tag:
+                    cleaned_result += char
+            result = cleaned_result.strip()
 
         return lang, result
 
