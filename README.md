@@ -4,7 +4,7 @@ This project automates the process of fetching job listings, evaluating them usi
 
 It consists of three main components:
 
-- _net.py_ 
+- net.py 
   - Web scraping & parsing job listings
 
 - ai.py 
