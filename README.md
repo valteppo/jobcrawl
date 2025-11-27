@@ -1,4 +1,4 @@
-# Job Application Automation Project
+# Duuniryömijä
 
 This project automates the process of fetching job listings, evaluating them using an LLM, and generating tailored motivation letters for the best-scored positions. 
 

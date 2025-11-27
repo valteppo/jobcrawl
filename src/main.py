@@ -3,8 +3,7 @@ from ai import AI
 
 if __name__ == "__main__":
     # Resource initialization is downloadilization
-    netparser = Netparser(skip_download=True)
-    netparser._reset_evaluation()
+    netparser = Netparser()
     ai = AI()
 
     # Run primary evaluation and immediately make letter.

@@ -1,0 +1,8 @@
+Do not apply to this job directly, explain that I found a relevant job application and got interested in the company and why I am good choice for a trainee.
+Give the answer in markdown format. 
+Use maximum of 300 words. 
+Be precise. 
+Use plain english. 
+Only list technologies and skills CV has.
+Note that a full CV will be sent with the application.
+Note that this whole application process is completely automatic python and bash project running on selfhosted LLM.
