@@ -40,7 +40,8 @@ class AI:
         for filename in os.listdir(applicant_folder):
             if filename.endswith("cv.txt"):
                 with open(os.path.join(applicant_folder, filename), "r", encoding="utf-8") as f:
-                    self.cv = f.read()
+                    cv = f.read()
+        return cv
 
     def _load_ai_instructions(self):
         # load ai instructions from applicant folder
@@ -52,39 +53,37 @@ class AI:
                     instructions = f.read()
         return instructions
     
-    def compress_description(self, job) -> dict:
-        temp_job = job.copy()
-        print(f"Compressing description: {job["id"]}")
-        prompt = f"Given the following job description, shorten it to 200 words. \
-                List all the technologies mentioned. Use plaintext formatting. \
-                Answer in english. \
-                Description begins: {job["description"]}"
-        result = self.ask(model="deepseek-r1:1.5b", prompt=prompt)
-        temp_job["compressed"] = result
-        return temp_job
+    def __find_first_int_len1_or2(self, s):
+        for i in range(len(s)):
+            # Check 2-digit window first
+            if i + 2 <= len(s) and s[i:i+2].isdigit():
+                return int(s[i:i+2])
+            # Check 1-digit window
+            if s[i].isdigit():
+                return int(s[i])
+        return None
     
     def evaluate_job_listing(self, job) -> dict:
         temp_job = job.copy()
         print(f"Evaluating job listing: {job['url']}")
-        prompt = f"Given the following CV:\n \
+        prompt = f"Given the following concise CV:\n \
                 {self.cv}\n\n \
                 And the following job description:\n \
                 {job['description']}\n\n \
-                Is this job suitable for the CV? \
-                Answer with one word: 'yes' or 'no'."
-        primary_evaluation = self.ask(model="deepseek-r1:1.5b", prompt=prompt)
+                Evaluate the candidate on a scale from 1 to 10. \
+                Answer with that integer value."
+        primary_evaluation = self.ask(prompt=prompt)
         print(primary_evaluation)
         # Set the "evaluated" field to True
         temp_job["evaluated"] = True
-        if "yes" in primary_evaluation.lower():
-            temp_job["suitable"] = True
-        else:
-            temp_job["suitable"] = False
+        evaluation = self.__find_first_int_len1_or2(primary_evaluation)
+        if evaluation != None:
+            temp_job["ranking"] = evaluation
         return temp_job
     
     def make_application_letter(self, job) -> None:
         print(f"Forming the application letter: {job["company"]}\t{job["id"]}")
-        prompt = f"Given the following CV:\n \
+        prompt = f"Given the following CV and skills:\n \
                 {self.cv}\n\n \
                 And the following job description:\n \
                 {job['description']}\n\n \
@@ -103,4 +102,4 @@ class AI:
         os.makedirs(company_dir, exist_ok=True)
         listing_file_path = os.path.join(company_dir, f"{listing_information['id']}_motivation_letter.md")
         with open(listing_file_path, "w", encoding="utf-8") as f:
-            f.write(letter)
+            f.write(f"APPLICATION LINK: {listing_information["url"]}\nCOMPANY: {listing_information["company"]}\n##################\n\n\n{letter}")

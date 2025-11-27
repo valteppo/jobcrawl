@@ -13,7 +13,7 @@ class Netparser:
         self.listing_information = []
         self._load_listing_information()
         if not skip_download:
-            self._find_individual_listings()
+            self.field_listing_urls = self._get_field_listings()
             self._form_listing_information()
 
     def listings(self) -> list:
@@ -72,7 +72,7 @@ class Netparser:
                 "publish_date": publish_date,
                 "expiry_date": expiry_date,
                 "evaluated": False,
-                "suitable": None
+                "ranking": 0,
             }
             self._save_listing_information(listing_information)
             if listing_information["company"] == "Unknown Company":
@@ -102,9 +102,6 @@ class Netparser:
         while '</a>' in description:
             description = description.replace('</a>', '')
         return description.strip()
-    
-    def _find_individual_listings(self) -> None:
-        self.field_listing_urls = self._get_field_listings()
 
     def _job_listing_id_extraction(self, url) -> str:
         return url.split("/")[-1]
@@ -238,4 +235,25 @@ class Netparser:
                 job_link = "https://duunitori.fi" + job_link
                 job_listings.append(job_link)
         return job_listings
+    
+    def _reset_evaluation(self):
+        cwd = os.getcwd()
+        input_dir = os.path.join(cwd, "output")
+        input_dir = os.path.join(input_dir, "listings")
+        try:
+            for company_dir in os.listdir(input_dir):
+                company_path = os.path.join(input_dir, company_dir)
+                if os.path.isdir(company_path):
+                    for listing_file in os.listdir(company_path):
+                        file_path = os.path.join(company_path, listing_file)
+                        with open(file_path, "r", encoding="utf-8") as f:
+                            listing_data = json.load(f)
+                        try:
+                            listing_data.pop("compressed", None)
+                        except:
+                            pass                        
+                        listing_data["evaluated"] = False
+                        listing_data["ranking"] = 0
+        except FileNotFoundError:
+            print(f"No existing listings found in {input_dir}.")
     
