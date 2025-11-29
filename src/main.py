@@ -2,11 +2,9 @@ from net import Netparser
 from ai import AI
 
 if __name__ == "__main__":
-    # Resource initialization is downloadilization
-    netparser = Netparser()
+    netparser = Netparser(skip_download=True)
     ai = AI()
 
-    # Run primary evaluation and immediately make letter.
     for job in netparser.listings():
         if job["evaluated"] == True:
             continue

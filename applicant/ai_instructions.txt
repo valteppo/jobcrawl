@@ -4,5 +4,4 @@ Use maximum of 300 words.
 Be precise. 
 Use plain english. 
 Only list technologies and skills CV has.
-Note that a full CV will be sent with the application.
-Note that this whole application process is completely automatic python and bash project running on selfhosted LLM.
+VERY IMPORTANT: Ask for a trainee position.

@@ -1,6 +1,10 @@
 import requests
 import os
 import json
+import aiohttp
+import asyncio
+
+import data
 
 class Netparser:
     def __init__(self, selected_job_field: str = "ohjelmisto_ala", skip_download: bool = False):
@@ -8,48 +12,111 @@ class Netparser:
             "ohjelmisto_ala": "https://duunitori.fi/tyopaikat/ala/ohjelmointi-ja-ohjelmistokehitys"
         }
         self.selected_job_field = selected_job_field
+        self.base_url = self.job_field_base_urls[self.selected_job_field]
+        self.already_downloaded_listing_urls = self._load_all_downloaded_data()
         self.field_listing_urls = []
         self.current_page_content = []
         self.listing_information = []
         self._load_listing_information()
-        if not skip_download:
-            self.field_listing_urls = self._get_field_listings()
-            self._form_listing_information()
 
-    def listings(self) -> list:
-        return self.listing_information
+    def download(self):
+        """
+        This downloads the jobs not found on the folder and saves them.
+        """
+        self.form_listing_urls()
+        web_data = self._bulk_download(self.field_listing_urls)
+        for web_content in web_data:
+            company_name = self._job_listing_company_extraction(web_content)
+            language, job_description = self._job_listing_description_extraction(web_content)
+            publish_date = self._job_listing_publish_date_extraction(web_content)
+            expiry_date = self._job_listing_expiry_date_extraction(web_content)
+            listing_information = {
+                "url": job_url,
+                "company": company_name,
+                "language": language,
+                "id": job_id,
+                "description": job_description,
+                "publish_date": publish_date,
+                "expiry_date": expiry_date,
+                "evaluated": False,
+                "ranking": 0,
+            }
+
+    def form_listing_urls(self) -> list[str] | None:
+        """
+        This checks what listings have not been downloaded yet and adds them as urls to 
+        self.field_listing_urls
+        """
+
+        # Get the main page to Ala.
+        main_page = self._single_download(self.base_url)
+        if not main_page:
+            print("Error on main page fetch: ", self.base_url)
+            return
+        
+        # Get max pagination and form urls
+        page_count = self._find_max_pagination(main_page)
+        page_urls = []
+        for page in range(2, page_count+1):
+            url = self.base_url + f"?sivu={page}"
+            page_urls.append(url)
+        
+        # Launch queries to get the paginated content
+        listed_jobs_in_pages = self._bulk_download(page_urls)
+
+        # Extract the listing url displayed on each page.
+        res = []
+        temp = self._get_job_listings(main_page)
+        [res.append(i) for i in temp]
+        for page_content in listed_jobs_in_pages:
+            temp = self._get_job_listings(page_content)
+            [res.append(i) for i in temp]
+
+        # If url not already handled, put it to query
+        for url in res:
+            if url not in self.already_downloaded_listing_urls:
+               self.field_listing_urls
+
+    def _load_all_downloaded_data(self):
+        jobs = data.load_saved_listing_information()
+        urls = []
+        for job in jobs:
+            urls.append(job.url)
+        return urls
     
-    def update_listing_information(self, updated_listings: list) -> None:
-        self.listing_information = updated_listings
-        self._save_listing_information(updated_listings)
-    
-    def _load_listing_information(self) -> None:
-        cwd = os.getcwd()
-        input_dir = os.path.join(cwd, "output")
-        input_dir = os.path.join(input_dir, "listings")
-        try:
-            for company_dir in os.listdir(input_dir):
-                company_path = os.path.join(input_dir, company_dir)
-                if os.path.isdir(company_path):
-                    for listing_file in os.listdir(company_path):
-                        file_path = os.path.join(company_path, listing_file)
-                        with open(file_path, "r", encoding="utf-8") as f:
-                            listing_data = json.load(f)
-                            self.listing_information.append(listing_data)
-        except FileNotFoundError:
-            print(f"No existing listings found in {input_dir}.")
-    
-    def _save_listing_information(self, listing_information) -> None:
-        # Save individual listings as they are fetched
-        cwd = os.getcwd()
-        output_dir = os.path.join(cwd, "output")
-        output_dir = os.path.join(output_dir, "listings")
-        os.makedirs(output_dir, exist_ok=True)
-        company_dir = os.path.join(output_dir, listing_information["company"])
-        os.makedirs(company_dir, exist_ok=True)
-        listing_file_path = os.path.join(company_dir, f"{listing_information['id']}.json")
-        with open(listing_file_path, "w", encoding="utf-8") as f:
-            json.dump(listing_information, f, ensure_ascii=False, indent=4)
+    def _single_download(self, url) -> list[str] | None:
+        # Returns the website as list[str]
+        req = requests.get(url)
+        if req.status_code == 200:
+            return req.text.splitlines()
+        else:
+            return None
+        
+    def _bulk_download(self, list_of_urls) -> list[list[str]] | None:
+        # Returns a list of websites
+        async def fetch_url(session: aiohttp.ClientSession, url: str)-> list[str] | None:
+            try:
+                async with session.get(url) as response:
+                    response.raise_for_status()  
+                    return await response.text().splitlines()
+            except aiohttp.ClientError as e:  
+                print(f"Error fetching {url}: {e}")
+                return None 
+            
+        async def query_urls_async(urls: list[str]) -> list[str | None]:
+            async with aiohttp.ClientSession() as session:  
+                tasks = [fetch_url(session, url) for url in urls]
+                results = await asyncio.gather(*tasks)  
+                filtered = []
+                for res in results:
+                    if res != None:
+                        filtered.append(res)
+                if len(filtered) == 0:
+                    return None
+                return filtered
+        
+        return asyncio.run(query_urls_async(list_of_urls))
+
 
     def _form_listing_information(self) -> None:
         for job_url in self.field_listing_urls:
@@ -197,24 +264,19 @@ class Netparser:
             result = cleaned_result.strip()
 
         return lang, result
-
-    def _get_job_field_base_url(self) -> str:
-        return self.job_field_base_urls[self.selected_job_field]
     
-    def _get_field_listings(self) -> list:
-        url = self._get_job_field_base_url()
-        web_query = requests.get(url)
-        page = 1
-        result = []
-        while web_query.status_code == 200:
-            temp_listings = []
-            page_content = web_query.text.splitlines()
-            temp_listings = self._get_job_listings(page_content)
-            result.extend([i for i in temp_listings if i not in result])
-            page = page + 1
-            web_query = requests.get(url + f"?sivu={page}")
-        print(f"Total pages fetched: {page - 1}")
-        return result
+    
+    def _find_max_pagination(self, page_web_content):
+        res = 0
+        for line in page_web_content:
+            if '"class="pagination__pagenum' in line:
+                start_index = line.find('"class="pagination__pagenum') + len('"class="pagination__pagenum')
+                limiter_start = line.find(">", start_index)
+                limiter_end = line.find("<", limiter_start)
+                page = int(line[limiter_start:limiter_end])
+                if page > res:
+                    res = page
+        return res
 
     def _get_job_listings(self, page_web_content) -> list:
         # if job listing already saved, skip it
@@ -235,25 +297,4 @@ class Netparser:
                 job_link = "https://duunitori.fi" + job_link
                 job_listings.append(job_link)
         return job_listings
-    
-    def _reset_evaluation(self):
-        cwd = os.getcwd()
-        input_dir = os.path.join(cwd, "output")
-        input_dir = os.path.join(input_dir, "listings")
-        try:
-            for company_dir in os.listdir(input_dir):
-                company_path = os.path.join(input_dir, company_dir)
-                if os.path.isdir(company_path):
-                    for listing_file in os.listdir(company_path):
-                        file_path = os.path.join(company_path, listing_file)
-                        with open(file_path, "r", encoding="utf-8") as f:
-                            listing_data = json.load(f)
-                        try:
-                            listing_data.pop("compressed", None)
-                        except:
-                            pass                        
-                        listing_data["evaluated"] = False
-                        listing_data["ranking"] = 0
-        except FileNotFoundError:
-            print(f"No existing listings found in {input_dir}.")
     

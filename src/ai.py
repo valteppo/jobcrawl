@@ -10,7 +10,7 @@ class AI:
         self.cv = self._load_cv()
         self.ai_instructions = self._load_ai_instructions()
 
-    def ask(self, model: str = "deepseek-r1:14b", prompt: str = "") -> str:
+    def ask(self, model: str = "gemma2:9b", prompt: str = "") -> str:
         url = "http://localhost:11434/api/chat"
 
         payload = {
@@ -70,8 +70,9 @@ class AI:
                 {self.cv}\n\n \
                 And the following job description:\n \
                 {job['description']}\n\n \
-                Evaluate the candidate on a scale from 1 to 10. \
-                Answer with that integer value."
+                Candidate IS NOT applying for this job, but interested in a trainee position in the company.\
+                Would the candidate's skillset and interests align with this company's position?\
+                Answer with integer number from 1 to 10."
         primary_evaluation = self.ask(prompt=prompt)
         print(primary_evaluation)
         # Set the "evaluated" field to True
