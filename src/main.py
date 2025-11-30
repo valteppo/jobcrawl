@@ -1,15 +1,16 @@
 from net import Netparser
 from ai import AI
+from data import load_saved_listing_information, JobListing
 
 if __name__ == "__main__":
-    netparser = Netparser(skip_download=True)
+    netparser = Netparser()
     ai = AI()
 
-    for job in netparser.listings():
-        if job["evaluated"] == True:
-            continue
-        evaluated_job = ai.evaluate_job_listing(job=job)
-        if evaluated_job["ranking"] >= 7:
-            letter = ai.make_application_letter(job=job)
-            ai.save_application_letter(letter=letter, listing_information=job)
-        netparser.update_listing_information(evaluated_job)
+    netparser.form_listing_urls()
+    netparser.download_n(5)
+    jobs = load_saved_listing_information()
+    for job in jobs:
+        if job.evaluated == False:
+            ai.evaluate_job_listing(job)
+        if job.application == "":
+            ai.make_application_letter(job)

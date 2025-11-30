@@ -33,7 +33,7 @@ class JobListing:
         self.language = listing_data["language"]
         self.description = listing_data["description"]
         self.publish_date = listing_data["publish_date"]
-        self.expiry_date = listing_data["expiry_data"]
+        self.expiry_date = listing_data["expiry_date"]
         self.evaluated = listing_data["evaluated"]
         self.ranking = listing_data["ranking"]
         self.application = listing_data["application"]
@@ -90,10 +90,13 @@ def load_saved_listing_information() -> list[JobListing] | None:
                 for listing_file in os.listdir(company_path):
                     file_path = os.path.join(company_path, listing_file)
                     with open(file_path, "r", encoding="utf-8") as f:
-                        listing_data = json.load(f)
-                        job = JobListing(listing_data["url"])
-                        job.load_from_json_ob(listing_data)
-                        result.append(job)
+                        try:
+                            listing_data = json.load(f)
+                            job = JobListing(listing_data["url"])
+                            job.load_from_json_ob(listing_data)
+                            result.append(job)
+                        except:
+                            pass
 
     except FileNotFoundError:
         print(f"No existing listings found in {input_dir}.")

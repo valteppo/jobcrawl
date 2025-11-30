@@ -3,6 +3,8 @@ import json
 import time
 import os
 
+from data import JobListing
+
 class AI:
     def __init__(self):
         self.ask_counter = 0
@@ -63,44 +65,35 @@ class AI:
                 return int(s[i])
         return None
     
-    def evaluate_job_listing(self, job) -> dict:
-        temp_job = job.copy()
-        print(f"Evaluating job listing: {job['url']}")
+    def evaluate_job_listing(self, job: JobListing):
+        print(f"Evaluating job listing: {job.id}")
         prompt = f"Given the following concise CV:\n \
                 {self.cv}\n\n \
                 And the following job description:\n \
-                {job['description']}\n\n \
+                {job.description}\n\n \
                 Candidate IS NOT applying for this job, but interested in a trainee position in the company.\
                 Would the candidate's skillset and interests align with this company's position?\
                 Answer with integer number from 1 to 10."
         primary_evaluation = self.ask(prompt=prompt)
         print(primary_evaluation)
-        # Set the "evaluated" field to True
-        temp_job["evaluated"] = True
+        job.evaluated = True
         evaluation = self.__find_first_int_len1_or2(primary_evaluation)
-        if evaluation != None:
-            temp_job["ranking"] = evaluation
-        return temp_job
+        if evaluation == None:
+            job.evaluated = False
+        job.save()
+        return 
     
-    def make_application_letter(self, job) -> None:
-        print(f"Forming the application letter: {job["company"]}\t{job["id"]}")
+    def make_application_letter(self, job: JobListing):
+        print(f"Forming the application letter: {job.company}\t{job.id}")
         prompt = f"Given the following CV and skills:\n \
                 {self.cv}\n\n \
                 And the following job description:\n \
-                {job['description']}\n\n \
+                {job.description}\n\n \
                 Follow these instructions: \
                 {self.ai_instructions}"
         result = self.ask(prompt=prompt)
-        print("Done.")
-        return result
+        job.application = result
+        job.save()
+        print("Application formed.")
+        return
     
-    def save_application_letter(self, letter: str, listing_information: dict) -> None:
-        cwd = os.getcwd()
-        output_dir = os.path.join(cwd, "output")
-        output_dir = os.path.join(output_dir, "letters")
-        os.makedirs(output_dir, exist_ok=True)
-        company_dir = os.path.join(output_dir, listing_information["company"])
-        os.makedirs(company_dir, exist_ok=True)
-        listing_file_path = os.path.join(company_dir, f"{listing_information['id']}_motivation_letter.md")
-        with open(listing_file_path, "w", encoding="utf-8") as f:
-            f.write(f"APPLICATION LINK: {listing_information["url"]}\nCOMPANY: {listing_information["company"]}\n##################\n\n\n{letter}")
