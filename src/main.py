@@ -7,10 +7,12 @@ if __name__ == "__main__":
     ai = AI()
 
     netparser.form_listing_urls()
-    netparser.download_n(5)
-    jobs = load_saved_listing_information()
-    for job in jobs:
-        if job.evaluated == False:
-            ai.evaluate_job_listing(job)
-        if job.application == "":
-            ai.make_application_letter(job)
+    while len(netparser.field_listing_urls) > 1:
+        chunk = 5 if 5 <= len(netparser.field_listing_urls) else len(netparser.field_listing_urls)
+        netparser.download_n(chunk)
+        jobs = load_saved_listing_information()
+        for job in jobs:
+            if job.evaluated == False:
+                ai.evaluate_job_listing(job)
+            if job.application == "" and job.evaluated == True and job.ranking >= 7:
+                ai.make_application_letter(job)
