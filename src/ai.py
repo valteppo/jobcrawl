@@ -77,9 +77,11 @@ class AI:
         primary_evaluation = self.ask(prompt=prompt)
         print(primary_evaluation)
         job.evaluated = True
-        evaluation = self.__find_first_int_len1_or2(primary_evaluation)
-        if evaluation == None:
+        ranking = self.__find_first_int_len1_or2(primary_evaluation)
+        if ranking == None:
             job.evaluated = False
+        else:
+            job.ranking = ranking
         job.save()
         return 
     

@@ -21,10 +21,14 @@ class Netparser:
         """
         if len(self.field_listing_urls) == 0:
             print("Query empty. If not intentional, run self.form_listing_urls() before.")
+        job_list = []
         for url in self.field_listing_urls[:n]:
             this_url, status_code, web_content = self._single_download(url)
             if status_code != 200:
                 print("Statuscode",status_code, this_url)
+                continue
+            else:
+                print("Downloaded",this_url)
             job = JobListing(url=this_url)
             job.company = self._job_listing_company_extraction(web_content)
             language, job_description = self._job_listing_description_extraction(web_content)
@@ -33,7 +37,10 @@ class Netparser:
             job.publish_date = self._job_listing_publish_date_extraction(web_content)
             job.expiry_date = self._job_listing_expiry_date_extraction(web_content)
             job.save()
-
+            self.field_listing_urls.remove(this_url)
+            job_list.append(job)
+        return job_list
+    
     def form_listing_urls(self):
         """
         This checks what listings have not been downloaded yet and adds them as urls to 
@@ -96,40 +103,6 @@ class Netparser:
             return (url, req.status_code, req.text.splitlines())
         else:
             return (url, req.status_code, [])
-
-    def _form_listing_information(self) -> None:
-        for job_url in self.field_listing_urls:
-            # Check if listing already exists
-            if any(listing["url"] == job_url for listing in self.listing_information):
-                continue
-            print(f"Fetching listing information for: {job_url}")
-            web_content = requests.get(job_url).text.splitlines()
-            company_name = self._job_listing_company_extraction(web_content)
-            language, job_description = self._job_listing_description_extraction(web_content)
-            job_id = self._job_listing_id_extraction(job_url)
-            publish_date = self._job_listing_publish_date_extraction(web_content)
-            expiry_date = self._job_listing_expiry_date_extraction(web_content)
-            listing_information = {
-                "url": job_url,
-                "company": company_name,
-                "language": language,
-                "id": job_id,
-                "description": job_description,
-                "publish_date": publish_date,
-                "expiry_date": expiry_date,
-                "evaluated": False,
-                "ranking": 0,
-            }
-            self._save_listing_information(listing_information)
-            if listing_information["company"] == "Unknown Company":
-                print("Warning: Company name could not be extracted.")
-                print(listing_information)
-                return
-            if len(listing_information["description"]) < 100:
-                print("Warning: Job description seems too short.")
-                print(listing_information)
-                return
-            self.listing_information.append(listing_information)
 
     def _remove_divclass_from_description(self, description: str) -> str:
         # remove <div class=\" ... ">
@@ -246,7 +219,6 @@ class Netparser:
     
     
     def _find_max_pagination(self, page_web_content):
-        print(len(page_web_content))
         res = 0
         for line in page_web_content:
             if 'pagination' in line:
