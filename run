@@ -8,20 +8,13 @@ if [ ! -f ".env" ]; then
   cp env.example .env
 fi
 
-# Check if root folder has permission to read and write and set recursively if not
-if [ ! -r . ] || [ ! -w . ]; then
-  sudo chmod -R u+rw .
-fi
+mkdir -p db
+sqlite3 "db/db" <db/init.sql
 
-# Make src/main.py executable if not already
 if [ ! -x src/main.py ]; then
-  sudo chmod +x src/main.py
+  chmod +x src/main.py
 fi
 
 source .venv/bin/activate
 pip install -r requirements.txt >/dev/null
-
-# Run the main Python script
 python src/main.py
-
-deactivate
