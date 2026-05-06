@@ -10,7 +10,6 @@ class Netparser:
         }
         self.selected_job_field = selected_job_field
         self.base_url = self.job_field_base_urls[self.selected_job_field]
-        self.already_downloaded_listing_urls = self._load_all_downloaded_data()
         self.field_listing_urls = []
         self.current_page_content = []
         self.listing_information = []
@@ -36,7 +35,6 @@ class Netparser:
             job.description = job_description
             job.publish_date = self._job_listing_publish_date_extraction(web_content)
             job.expiry_date = self._job_listing_expiry_date_extraction(web_content)
-            job.save()
             self.field_listing_urls.remove(this_url)
             job_list.append(job)
         return job_list
@@ -78,14 +76,7 @@ class Netparser:
             page_url, page_content = content
             temp = self._get_job_listings(page_content)
             [res.append(i) for i in temp]
-        
-
-        # If url not already handled, put it to query
-        for url in res:
-            if self.already_downloaded_listing_urls == None:
-                self.field_listing_urls.append(url)
-            elif url not in self.already_downloaded_listing_urls:
-                self.field_listing_urls.append(url)
+        return res
 
     def _load_all_downloaded_data(self):
         jobs = data.load_saved_listing_information()

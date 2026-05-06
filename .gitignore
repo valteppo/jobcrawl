@@ -1,3 +1,4 @@
 .venv/
-output/
+.env
+db/db
 src/__pycache__/

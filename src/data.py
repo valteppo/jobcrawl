@@ -1,106 +1,103 @@
 import os
-import json
+import sqlite3
 
 class JobListing:
-    def __init__(self, url: str):
-        self.url = url
-        self.id = self.url.split("/")[-1]
+    def __init__(self):
+        self.url = None
+        self.url_id = 0
         self.company = None
-        self.language = ""
-        self.description = None
-        self.publish_date = ""
-        self.expiry_date  = ""
+        self.publish_date = None
+        self.expiry_date = None
+        self.language = None
         self.evaluated = False
         self.ranking = -1
-        self.application = ""
+        self.description = None
+        self.application = None
+        self._db_path = os.path.join(os.getcwd(), "db", "db")
     
     def to_dict(self) -> dict:
         return {
-            "url":self.url,
-            "id":self.id,
-            "company":self.company,
-            "language":self.language,
-            "description":self.description,
-            "publish_date":self.publish_date,
-            "expiry_date":self.expiry_date,
-            "evaluated":self.evaluated,
-            "ranking":self.ranking,
-            "application":self.application
+            "url": self.url,
+            "url_id": self.url_id,
+            "company": self.company,
+            "language": self.language,
+            "description": self.description,
+            "publish_date": self.publish_date,
+            "expiry_date": self.expiry_date,
+            "evaluated": self.evaluated,
+            "ranking": self.ranking,
+            "application": self.application
         }
-    
-    def load_from_json_ob(self, listing_data):
-        self.company = listing_data["company"]
-        self.language = listing_data["language"]
-        self.description = listing_data["description"]
-        self.publish_date = listing_data["publish_date"]
-        self.expiry_date = listing_data["expiry_date"]
-        self.evaluated = listing_data["evaluated"]
-        self.ranking = listing_data["ranking"]
-        self.application = listing_data["application"]
-
-    def reload_from_dir(self):
-        cwd = os.getcwd()
-        output_dir = os.path.join(cwd, "output")
-        output_dir = os.path.join(output_dir, "listings")
-        os.makedirs(output_dir, exist_ok=True)
-        company_dir = os.path.join(output_dir, self.company)
-        os.makedirs(company_dir, exist_ok=True)
-        listing_file_path = os.path.join(company_dir, f"{self.id}.json")
-        try:
-            with open(listing_file_path, "r", encoding="utf-8") as f:
-                listing_data = json.load(f)
-                self.company = listing_data["company"]
-                self.language = listing_data["language"]
-                self.description = listing_data["description"]
-                self.publish_date = listing_data["publish_date"]
-                self.expiry_date = listing_data["expiry_data"]
-                self.evaluated = listing_data["evaluated"]
-                self.ranking = listing_data["ranking"]
-                self.application = listing_data["application"]
-                
-        except FileNotFoundError:
-            pass
-    
     def save(self):
-        cwd = os.getcwd()
-        output_dir = os.path.join(cwd, "output")
-        output_dir = os.path.join(output_dir, "listings")
-        os.makedirs(output_dir, exist_ok=True)
-        company_dir = os.path.join(output_dir, self.company)
-        os.makedirs(company_dir, exist_ok=True)
-        listing_file_path = os.path.join(company_dir, f"{self.id}.json")
-        with open(listing_file_path, "w", encoding="utf-8") as f:
-            json.dump(self.to_dict(), f, ensure_ascii=False, indent=4)
-    
-    def reset(self):
-        self.evaluated = False
-        self.ranking = -1
-        self.application = ""
-        self.save()
+        if self.url is None:
+            return
+            
+        with sqlite3.connect(self._db_path) as con:
+            cur = con.cursor()
+            
+            cur.execute("""
+            INSERT INTO jobs (
+                url, url_id, company, publish_date, expiry_date, 
+                language, evaluated, ranking, description, application
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(url_id) DO UPDATE SET
+                url = excluded.url,
+                company = excluded.company,
+                publish_date = excluded.publish_date,
+                expiry_date = excluded.expiry_date,
+                language = excluded.language,
+                evaluated = excluded.evaluated,
+                ranking = excluded.ranking,
+                description = excluded.description,
+                application = excluded.application
+            """, (
+                self.url, self.url_id, self.company, self.publish_date, 
+                self.expiry_date, self.language, self.evaluated, 
+                self.ranking, self.description, self.application
+            ))
+            
+            con.commit()
 
-def load_saved_listing_information() -> list[JobListing] | None:
-    cwd = os.getcwd()
-    input_dir = os.path.join(cwd, "output")
-    input_dir = os.path.join(input_dir, "listings")
-    result = []
-    try:
-        for company_dir in os.listdir(input_dir):
-            company_path = os.path.join(input_dir, company_dir)
-            if os.path.isdir(company_path):
-                for listing_file in os.listdir(company_path):
-                    file_path = os.path.join(company_path, listing_file)
-                    with open(file_path, "r", encoding="utf-8") as f:
-                        try:
-                            listing_data = json.load(f)
-                            job = JobListing(listing_data["url"])
-                            job.load_from_json_ob(listing_data)
-                            result.append(job)
-                        except:
-                            pass
+    @classmethod
+    def load(cls, url_id: int):
+        """Fetches a single job by url_id and returns a JobListing instance."""
+        db_path = os.path.join(os.getcwd(), "db", "db")
+        
+        if not os.path.exists(db_path):
+            return None
 
-    except FileNotFoundError:
-        print(f"No existing listings found in {input_dir}.")
-    
-    if len(result) == 0:
-        result = None
-    return result
+        with sqlite3.connect(db_path) as con:
+            con.row_factory = sqlite3.Row 
+            cur = con.cursor()
+            
+            cur.execute("SELECT * FROM jobs WHERE url_id = ?", (url_id,))
+            row = cur.fetchone()
+            
+            if row is None:
+                return None
+            
+            job = cls()
+            job.url = row['url']
+            job.url_id = row['url_id']
+            job.company = row['company']
+            job.publish_date = row['publish_date']
+            job.expiry_date = row['expiry_date']
+            job.language = row['language']
+            job.evaluated = bool(row['evaluated']) # Convert 0/1 back to True/False
+            job.ranking = row['ranking']
+            job.description = row['description']
+            job.application = row['application']
+            
+            return job
+
+    @staticmethod
+    def load_all():
+        """Returns a list of all JobListing objects in the database."""
+        db_path = os.path.join(os.getcwd(), "db", "db")
+        with sqlite3.connect(db_path) as con:
+            con.row_factory = sqlite3.Row
+            cur = con.cursor()
+            cur.execute("SELECT url_id FROM jobs")
+            ids = cur.fetchall()
+            
+        return [JobListing.load(row['url_id']) for row in ids]
