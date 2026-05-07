@@ -14,6 +14,7 @@ class JobListing:
         self.description = None
         self.application = None
         self._db_path = os.path.join(os.getcwd(), "db", "db")
+        self.ala_id = None
     
     def to_dict(self) -> dict:
         return {
@@ -29,33 +30,23 @@ class JobListing:
             "application": self.application
         }
     def save(self):
-        if self.url is None:
-            return
-            
-        with sqlite3.connect(self._db_path) as con:
+        db_path = os.path.join(os.getcwd(), "db", "db")
+        with sqlite3.connect(db_path) as con:
             cur = con.cursor()
-            
             cur.execute("""
             INSERT INTO jobs (
                 url, url_id, company, publish_date, expiry_date, 
-                language, evaluated, ranking, description, application
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                language, evaluated, ranking, description, application,
+                ala_id, contact
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(url_id) DO UPDATE SET
-                url = excluded.url,
-                company = excluded.company,
-                publish_date = excluded.publish_date,
-                expiry_date = excluded.expiry_date,
-                language = excluded.language,
-                evaluated = excluded.evaluated,
-                ranking = excluded.ranking,
-                description = excluded.description,
-                application = excluded.application
-            """, (
-                self.url, self.url_id, self.company, self.publish_date, 
-                self.expiry_date, self.language, self.evaluated, 
-                self.ranking, self.description, self.application
-            ))
-            
+                ala_id = excluded.ala_id,
+                contact = excluded.contact,
+                description = excluded.description
+            """, (self.url, self.url_id, self.company, self.publish_date, 
+                  self.expiry_date, self.language, self.evaluated, 
+                  self.ranking, self.description, self.application,
+                  self.ala_id, self.contact))
             con.commit()
 
     @classmethod
