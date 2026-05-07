@@ -44,7 +44,6 @@ class Netparser:
         existing_ids = self._get_existing_url_ids()
         all_online_urls = self._fetch_all_listing_urls()
         
-        # Filter for only new URLs before starting the heavy downloading
         new_urls = []
         for url in all_online_urls:
             try:
@@ -65,9 +64,6 @@ class Netparser:
                     count += 1
                 time.sleep(self.request_delay) # Politeness delay
             
-            # Optional: Short break between batches
-            time.sleep(2) 
-        
         print(f"--- Finished. {count} jobs processed. ---")
 
     def _fetch_all_listing_urls(self) -> list:
@@ -106,14 +102,11 @@ def _download_and_save(self, url: str, url_id: int) -> bool:
     def _get_raw_html(self, url: str):
         try:
             headers = {'User-Agent': 'Mozilla/5.0'}
-            # Added a timeout parameter here to prevent hanging forever
             r = requests.get(url, headers=headers, timeout=15)
             return r.text.splitlines() if r.status_code == 200 else None
         except requests.exceptions.RequestException as e:
             print(f"Timeout or error on {url}. Skipping...")
             return None
-
-    # --- Extraction Helpers ---
 
     def _extract_links_from_content(self, lines: list) -> list:
         marker = 'href="/tyopaikat/tyo/'
@@ -166,14 +159,11 @@ def _download_and_save(self, url: str, url_id: int) -> bool:
         """Attempts to find an email address or an application URL in the text."""
         content_text = "\n".join(lines)
         
-        # 1. Look for emails
         email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
         emails = re.findall(email_pattern, content_text)
         if emails:
-            return emails[0] # Return the first email found
-            
-        # 2. Look for common application links (e.g., ReachMee, Teamtailor, etc.)
-        # This looks for hrefs that contain 'apply', 'rekry', or 'careers'
+            return emails[0]            
+
         link_pattern = r'href="(https?://[^"]+(?:apply|rekry|careers|job)[^"]+)"'
         links = re.findall(link_pattern, content_text)
         if links:

@@ -13,13 +13,15 @@ class JobListing:
         self.ranking = -1
         self.description = None
         self.application = None
-        self._db_path = os.path.join(os.getcwd(), "db", "db")
+        self.contact = None 
         self.ala_id = None
+        self._db_path = os.path.join(os.getcwd(), "db", "db")
     
     def to_dict(self) -> dict:
         return {
             "url": self.url,
             "url_id": self.url_id,
+            "ala_id": self.ala_id, 
             "company": self.company,
             "language": self.language,
             "description": self.description,
@@ -27,11 +29,12 @@ class JobListing:
             "expiry_date": self.expiry_date,
             "evaluated": self.evaluated,
             "ranking": self.ranking,
-            "application": self.application
+            "application": self.application,
+            "contact": self.contact 
         }
+
     def save(self):
-        db_path = os.path.join(os.getcwd(), "db", "db")
-        with sqlite3.connect(db_path) as con:
+        with sqlite3.connect(self._db_path) as con:
             cur = con.cursor()
             cur.execute("""
             INSERT INTO jobs (
@@ -42,7 +45,10 @@ class JobListing:
             ON CONFLICT(url_id) DO UPDATE SET
                 ala_id = excluded.ala_id,
                 contact = excluded.contact,
-                description = excluded.description
+                description = excluded.description,
+                company = excluded.company,
+                publish_date = excluded.publish_date,
+                expiry_date = excluded.expiry_date
             """, (self.url, self.url_id, self.company, self.publish_date, 
                   self.expiry_date, self.language, self.evaluated, 
                   self.ranking, self.description, self.application,
@@ -51,16 +57,11 @@ class JobListing:
 
     @classmethod
     def load(cls, url_id: int):
-        """Fetches a single job by url_id and returns a JobListing instance."""
         db_path = os.path.join(os.getcwd(), "db", "db")
-        
-        if not os.path.exists(db_path):
-            return None
 
         with sqlite3.connect(db_path) as con:
             con.row_factory = sqlite3.Row 
             cur = con.cursor()
-            
             cur.execute("SELECT * FROM jobs WHERE url_id = ?", (url_id,))
             row = cur.fetchone()
             
@@ -70,25 +71,28 @@ class JobListing:
             job = cls()
             job.url = row['url']
             job.url_id = row['url_id']
+            job.ala_id = row['ala_id'] 
             job.company = row['company']
             job.publish_date = row['publish_date']
             job.expiry_date = row['expiry_date']
             job.language = row['language']
-            job.evaluated = bool(row['evaluated']) # Convert 0/1 back to True/False
+            job.evaluated = bool(row['evaluated'])
             job.ranking = row['ranking']
             job.description = row['description']
             job.application = row['application']
+            job.contact = row['contact'] 
             
             return job
 
     @staticmethod
     def load_all():
-        """Returns a list of all JobListing objects in the database."""
         db_path = os.path.join(os.getcwd(), "db", "db")
+        if not os.path.exists(db_path):
+            return []
+            
         with sqlite3.connect(db_path) as con:
-            con.row_factory = sqlite3.Row
             cur = con.cursor()
             cur.execute("SELECT url_id FROM jobs")
             ids = cur.fetchall()
             
-        return [JobListing.load(row['url_id']) for row in ids]
+        return [JobListing.load(row[0]) for row in ids]
