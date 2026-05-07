@@ -1,3 +1,4 @@
+import html
 import re
 
 def extract_company(web_content_lines):
@@ -48,3 +49,14 @@ def extract_description(web_content_lines):
                 
     raw_text = "\n".join(lines).replace("</p>", "\n").replace("<br>", "\n")
     return lang, clean_html(raw_text)
+
+def clean_text(text: str) -> str:
+    if not text:
+        return ""
+    
+    text = html.unescape(text)
+    text = text.replace('\xa0', ' ')
+    text = text.replace('\r\n', '\n').replace('\r', '\n')
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    
+    return text.strip()
