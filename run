@@ -9,10 +9,22 @@ if [ ! -f ".env" ]; then
 fi
 
 mkdir -p db
+mkdir -p cv
 sqlite3 "db/db" <db/init.sql
 
 if [ ! -x src/main.py ]; then
   chmod +x src/main.py
+fi
+
+if [ -f .env ]; then
+  while IFS= read -r line || [ -n "$line" ]; do
+    if [[ ! "$line" =~ ^# && -n "$line" ]]; then
+      export "$line"
+    fi
+  done <.env
+else
+  echo "Error: .env file not found."
+  exit 1
 fi
 
 source .venv/bin/activate

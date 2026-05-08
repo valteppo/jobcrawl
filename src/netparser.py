@@ -2,10 +2,9 @@ import os
 import re
 import sqlite3
 import requests
-import time
 import html
 from data import JobListing
-from parser_utils import clean_text
+from parser_utils import clean_job_description
 
 class Netparser:
     def __init__(self, ala_name: str = "ohjelmisto_ala"):
@@ -13,7 +12,6 @@ class Netparser:
         self.ala_name = ala_name
         self.ala_id, self.base_url = self._get_ala_config_from_db()
         self.chunk_size = 5 
-        self.request_delay = 1.0 
 
     def _get_ala_config_from_db(self):
         """Fetches both the ID and the URL for the category."""
@@ -61,7 +59,6 @@ class Netparser:
             for url, uid in batch:
                 if self._download_and_save(url, uid):
                     count += 1
-                time.sleep(self.request_delay)
             
         print(f"--- Finished. {count} jobs processed. ---")
 
@@ -77,7 +74,6 @@ class Netparser:
             page_content = self._get_raw_html(f"{self.base_url}?sivu={p}")
             if page_content:
                 urls.extend(self._extract_links_from_content(page_content))
-            time.sleep(0.5) 
             
         return list(set(urls))
 
@@ -92,8 +88,7 @@ class Netparser:
         job.company = self._extract_company(content)
         job.publish_date, job.expiry_date = self._extract_dates(content)
         job.language, job.description = self._extract_description(content)
-        job.contact = self._extract_contact(content)
-        
+        job.contact = self._extract_contact(job.description)
         job.save()
         return True
 
@@ -152,16 +147,16 @@ class Netparser:
                 depth += line.count('<div'); depth -= line.count('</div>')
                 if depth <= 0: break
         
-        raw_description = "\n".join(desc_lines).replace("</p>", "\n").replace("<br>", "\n")
-        clean_desc = re.sub('<[^<]+?>', '', raw_description)
-        return lang, clean_text(clean_desc)
+        raw_html_content = "\n".join(desc_lines).replace("</p>", "\n").replace("<br>", "\n")
+        no_tags = re.sub('<[^<]+?>', '', raw_html_content)
+        final_description = clean_job_description(no_tags)
+        return lang, final_description
 
     def _extract_contact(self, lines: list) -> str:
         content_text = "\n".join(lines)
         email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
         emails = re.findall(email_pattern, content_text)
-        if emails: return emails[0]
-
-        link_pattern = r'href="(https?://[^"]+(?:apply|rekry|careers|job)[^"]+)"'
-        links = re.findall(link_pattern, content_text)
-        return links[0] if links else "Not found"
+        if emails: 
+            return emails[0] 
+        else: 
+            return "Not Found"

@@ -50,13 +50,14 @@ def extract_description(web_content_lines):
     raw_text = "\n".join(lines).replace("</p>", "\n").replace("<br>", "\n")
     return lang, clean_html(raw_text)
 
-def clean_text(text: str) -> str:
+def clean_job_description(text: str) -> str:
     if not text:
         return ""
-    
+
     text = html.unescape(text)
     text = text.replace('\xa0', ' ')
-    text = text.replace('\r\n', '\n').replace('\r', '\n')
+    text = re.sub(r'^\s*Job description\s*', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'\s*Apply\s+Report a job ad\s*$', '', text, flags=re.IGNORECASE | re.DOTALL)
     text = re.sub(r'\n{3,}', '\n\n', text)
     
     return text.strip()

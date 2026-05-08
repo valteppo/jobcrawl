@@ -1,4 +1,5 @@
 .venv/
 .env
+cv/cv.md
 db/db
 src/__pycache__/
